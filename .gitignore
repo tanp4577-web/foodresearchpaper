@@ -1,0 +1,4 @@
+*.npz
+*.joblib
+*.tif
+*.zip

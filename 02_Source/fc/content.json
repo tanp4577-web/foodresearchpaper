@@ -1,0 +1,1445 @@
+[
+ {
+  "k": "title",
+  "text": "A leakage-aware multi-level image classifier for fresh and spoiled food with a refer-to-staff option: development and session-grouped validation on public datasets"
+ },
+ {
+  "k": "front",
+  "runs": [
+   {
+    "t": "Vipin Kumar Singh ",
+    "b": true,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "a,*",
+    "b": true,
+    "i": false,
+    "sup": true,
+    "sub": false
+   },
+   {
+    "t": ", Tanmay Pondhe ",
+    "b": true,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "b",
+    "b": true,
+    "i": false,
+    "sup": true,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "front",
+  "runs": [
+   {
+    "t": "a ",
+    "b": false,
+    "i": false,
+    "sup": true,
+    "sub": false
+   },
+   {
+    "t": "School of Hotel and Tourism Management, Vellore Institute of Technology, Vellore 632014, Tamil Nadu, India",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "front",
+  "runs": [
+   {
+    "t": "b ",
+    "b": false,
+    "i": false,
+    "sup": true,
+    "sub": false
+   },
+   {
+    "t": "School of Computer Science Engineering and Information Systems, Vellore Institute of Technology, Vellore 632014, Tamil Nadu, India",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "front",
+  "runs": [
+   {
+    "t": "* Corresponding author: vipin.singh@vit.ac.in (V. K. Singh); co-author: tanmay.satishpondhe2024@vitstudent.ac.in (T. Pondhe)",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "labelled_block",
+  "label": "Abstract",
+  "abstract": true,
+  "text": "This study develops and validates FreshCheck, an image-based classifier that labels food as fresh or spoiled and refers uncertain images to staff. FreshCheck averages the class probabilities of nine logistic-regression models built on colour and texture features, frozen MobileNetV3 features and frozen ResNet-50 features taken at three depths from whole-image and local views, and refers an image when its highest probability falls below a threshold set on training data so that at most 1% of spoiled images are accepted as fresh. It was evaluated on public red-meat (2,266 images), chicken-breast (1,300) and fruit (1,894) datasets with capture-session-grouped cross-validation, after screening each dataset for duplicate images. Screening showed that consecutive red-meat files were frames of one session and that 491 of 500 'good' files in a paneer-curry set were copies of nine photographs; image-level splits therefore overstated accuracy (red meat, final-layer features: 98.4% versus 86.9% with sessions held out; p = 0.048). Under session-grouped validation FreshCheck reached 95.2% on red meat, 98.4% on chicken and 97.4% on fruit, against 90.3%, 97.2% and 97.2% for fusion of final-layer features; mid-level features accounted for most of the gain. On chicken the refer rule decided 96.8% of images with 99.3% accuracy and lowered spoiled samples accepted as fresh from 1.8% to 0.8%. Models moved to the other meat dataset without local images failed (49–67%); about 80 to 170 labelled local images restored 94–97%. A demonstration application and all code are released. Image-based freshness checks should be validated by session and calibrated with local images."
+ },
+ {
+  "k": "labelled_block",
+  "label": "Keywords",
+  "text": "Food freshness; Spoilage detection; Computer vision; Selective classification; Model validation; Food safety"
+ },
+ {
+  "k": "h1",
+  "text": "1. Introduction"
+ },
+ {
+  "k": "p",
+  "text": "This study develops an image-based classifier that sorts food into fresh and spoiled, and tests it in the way it would be used at a new site. Visual assessment of freshness is a routine control point at receiving, in storage and at service for meat, fresh produce and prepared dishes, and camera-based checks promise to make it faster and more consistent (Meenu et al., 2021; Zhou et al., 2019). Studies built on public meat image datasets report 98.5–99.8% accuracy for fresh, half-fresh and spoiled categories (Abd Elfattah et al., 2025; Büyükarıkan, 2024; Külcü & Balpetek Külcü, 2026), and frozen-network features have been compared across several public meat collections (Hidalgo et al., 2025)."
+ },
+ {
+  "k": "p",
+  "text": "Three things are still missing before such results can support a real control. The first is sound validation. A test score means something only if the test images are independent of the training images in the ways that matter in use, and food analytics has begun to show what happens when they are not: an electronic-nose model of beef freshness reached a macro-F1 of 0.97 on a random split but 0.50 when whole cuts were held out (Ozkat, 2026), and specimen-disjoint validation raised the error of avocado shelf-life models from 2.37 to 3.12 days (Mudau et al., 2026). Public food image datasets are exposed to the same problem, because they often contain many photographs of a few items taken in a few sessions and seldom record item or session identifiers. One recent study removed 43.95% of the frames of merged meat corpora by perceptual hashing and left group-wise splitting for future work (Bramantyo et al., 2026), but whether hashing is enough has not been tested."
+ },
+ {
+  "k": "p",
+  "text": "The second gap is how errors are handled. A freshness check fails most seriously when it accepts spoiled food as fresh, yet published classifiers always return a label, however uncertain, and report overall accuracy rather than this error. Letting a classifier abstain when its confidence is low is an established way of trading coverage for reliability (Chow, 1970), and in a kitchen or receiving bay an abstention has a natural meaning: the item is passed to a trained person. The third gap is deployment. A model trained on one public dataset will meet food, cameras and lighting it has not seen, and how many local images are needed to make it work there has not been measured."
+ },
+ {
+  "k": "p",
+  "text": "Our aim was to develop and validate FreshCheck, a leakage-aware image classifier for fresh and spoiled food with a refer-to-staff option. The specific objectives were to (i) screen three public datasets (red meat, chicken breast and fruit) for duplicate, near-duplicate and capture-session structure, and four prepared-food collections for exact copies, so that validation folds could respect that structure; (ii) quantify how far image-level validation overstates accuracy compared with capture-session-grouped validation; (iii) build FreshCheck by late fusion of colour and texture features with frozen deep features taken at several network depths and image scales, and compare it with single-feature baselines, fusion of final-layer features and a fine-tuned network under session-grouped validation; (iv) evaluate the refer rule by its effect on spoiled samples accepted as fresh; and (v) measure performance on an independently collected dataset and how many local labelled images restore it. A demonstration application and all code are released for reuse."
+ },
+ {
+  "k": "h1",
+  "text": "2. Materials and methods"
+ },
+ {
+  "k": "h2",
+  "text": "2.1. Image datasets"
+ },
+ {
+  "k": "p",
+  "text": "Three public datasets of red meat, chicken breast and fruit were used to develop and validate FreshCheck, and four collections of prepared dishes were screened for duplicates only (Table 1). The red-meat set is the Meat Freshness Image Dataset (Shanawad, 2022), with 2,266 images of 416 × 416 pixels in three classes, fresh (853), half-fresh (789) and spoiled (624), and a fixed training/test split of 1,815/451 images. Our copy is the one mirrored with a published project report (Sagiraju et al., 2023), and its file and class counts match those given by Külcü and Balpetek Külcü (2026). The poultry set is a 1,300-image subset of a public collection of fresh and rotten chicken breast (calvinsama, n.d.) shared with an open project (Cendani et al., n.d.); it has 650 fresh and 650 rotten images of 200 × 200 pixels and a 1,000/300 split. Neither dataset explains how labels were assigned or how many pieces of meat were photographed, and neither records item or session identifiers. Each file name does carry a class prefix and a running number (for example FRESH-1000 or segar_0001), and we tested that number as a stand-in for capture order."
+ },
+ {
+  "k": "p",
+  "text": "The fruit set is a public collection (zijianchen98, 2022) of 3,202 photographs, mostly 640 × 480 pixels, with Pascal-VOC box labels for apples, bananas and oranges in three states: fresh, normal and rotten. We kept the 1,894 images in which every labelled object carried the same label (913 fresh, 334 normal, 647 rotten) and used them for a three-class freshness task across fruits and for a binary fresh-versus-rotten task (1,560 images). Its file numbers are interleaved across classes, and the repository does not describe how images were collected or labelled."
+ },
+ {
+  "k": "p",
+  "text": "Two prepared Indian dishes were screened for exact copies, because duplicates in such collections would make any classifier trained on them untestable. The paneer-curry dataset of Basak and Sarkar (2025) is published under CC BY 4.0 as phone photographs in a 'good' and a 'bad' class, described as over 500 images. We computed MD5 and SHA-256 checksums for all 500 files of the 'good' class and compared them with the SHA-256 values in the repository's public file listing, which also covers the 'bad' class. Three public momo (dumpling) datasets from the same repository, each described as more than 1,000 phone photographs in 'good' and 'bad' classes (Paul & Sarkar, 2026; Sarkar & Sarkar, 2026; Singh & Sarkar, 2026), were checked from their public file listings: two portions of each listing (about 250 entries per dataset) were read and the listed SHA-256 checksums compared. These four collections were not used for classification."
+ },
+ {
+  "k": "table",
+  "n": 1,
+  "title": "Datasets used in this study",
+  "rows": [
+   [
+    "Dataset",
+    "Food",
+    "Classes (images)",
+    "Image size (px)",
+    "Split",
+    "Label method stated",
+    "Use"
+   ],
+   [
+    "Meat Freshness Image Dataset (Shanawad, 2022)",
+    "Red meat",
+    "Fresh 853; half-fresh 789; spoiled 624",
+    "416 × 416",
+    "1,815 / 451",
+    "No",
+    "Development and validation; transfer test"
+   ],
+   [
+    "Fresh and Rotten Poultry Meat (calvinsama, n.d.); subset of Cendani et al. (n.d.)",
+    "Chicken breast",
+    "Fresh 650; rotten 650",
+    "200 × 200",
+    "1,000 / 300",
+    "No",
+    "Development and validation; transfer test"
+   ],
+   [
+    "Fruit freshness detection dataset (zijianchen98, 2022)",
+    "Apple, banana, orange",
+    "Fresh 913; normal 334; rotten 647 (single-label images)",
+    "Mostly 640 × 480",
+    "None",
+    "No",
+    "Development and validation"
+   ],
+   [
+    "Paneer curry (Basak & Sarkar, 2025)",
+    "Paneer curry (prepared dish)",
+    "'Good' 500 files; 'bad' (listing only)",
+    "Phone photos",
+    "None",
+    "No",
+    "Duplicate screening"
+   ],
+   [
+    "Momo datasets (Paul & Sarkar, 2026; Sarkar & Sarkar, 2026; Singh & Sarkar, 2026)",
+    "Steamed, chicken and pan-fried momo",
+    "Each > 1,000 files as 'good' and 'bad'; about 250 listing entries per dataset checked",
+    "Phone photos",
+    "None",
+    "No",
+    "Duplicate screening"
+   ]
+  ]
+ },
+ {
+  "k": "h2",
+  "text": "2.2. Dataset screening for duplicates and capture sessions"
+ },
+ {
+  "k": "p",
+  "text": "Before any model was trained, each dataset was screened for structure that would let related images fall on both sides of a split. For every image we computed a 256-bit perceptual hash (pHash on a 16 × 16 discrete cosine transform; Buchner, n.d.) and the Hamming distance between all pairs; images within 60 bits of each other were linked, and the connected components became near-duplicate families. For scale, the 0.1st percentile of all pairwise distances was 100 bits in the red-meat set and 102 bits in the poultry set. Each file name carries a class prefix and a running number (for example FRESH-1000 or segar_0001), and we tested whether that number tracks capture order in two ways: by recording whether each image's closest neighbour by hash was a same-class image within five file numbers, against a chance rate from random same-class pairs, and by averaging the hash distance between same-class images as a function of the gap between their file numbers. For the paneer-curry and momo sets, exact copies were identified by file checksums."
+ },
+ {
+  "k": "p",
+  "text": "We turned the first test into a provenance check that can be run before training. Images are ranked by file number within each class, and the statistic is the share whose closest same-class neighbour by hash lies within five places in that ranking. Its null distribution comes from 999 random within-class permutations of the ranks, so p = (1 + number of permutations at or above the observed share) / 1,000. Alongside it we report the share of images with a same-class neighbour within 30 bits, a stricter threshold that counts only near-copies. The check needs only file names and image hashes. Its result decides how validation folds are grouped (Section 2.5): by capture-order block when file order encodes sessions, and by near-copy family when copies are scattered."
+ },
+ {
+  "k": "h2",
+  "text": "2.3. The FreshCheck classifier"
+ },
+ {
+  "k": "fig",
+  "file": "fig1_pipeline_v3.png",
+  "caption": "Figure 1. How FreshCheck reaches a decision, shown for one half-fresh red-meat photograph with models trained without its capture session. The photograph is described by colour and texture features, by MobileNetV3 features and by ResNet-50 features taken at three depths from whole-image and local views (only part of each is shown). Nine logistic regressions, one per feature set, each give class probabilities (shown averaged within the three groups), and all nine are averaged. Here the colour models alone would have called the meat fresh; the average calls it half-fresh. If the top averaged probability is below the threshold τ, the photograph is referred to staff. τ is chosen on training photographs only, as the smallest value at which no more than 1% of spoiled photographs are accepted as fresh."
+ },
+ {
+  "k": "p",
+  "text": "FreshCheck (Fig. 1) describes a photograph with nine feature sets in three groups. The colour group holds two sets computed at 224 × 224 pixels: a colour and texture set (50 values: marginal HSV histograms with 18, 8 and 8 bins, a 10-bin histogram of uniform local binary patterns, and the mean and standard deviation of each Lab channel) and a fine colour set (85 values: five percentiles of each Lab channel, an 8 × 8 joint histogram of a* and b*, and Lab means and standard deviations). The second group is the 1,024-dimensional pooled output of MobileNetV3-Small (Howard et al., 2019). The third group comes from ResNet-50 (He et al., 2016; timm weights resnet50.a1_in1k; Wightman, 2019). Spoilage shows first as changes in surface colour, sheen and fine texture, which are encoded in the middle of a network, whereas its final layer summarises the whole scene, including the tray and background that identify a capture session. We therefore took the globally pooled outputs of residual stages 2, 3 and 4 (512, 1,024 and 2,048 values), each from two views: a whole-image view (the image at 224 × 224 pixels and its mirror image, averaged) and a local view (the image resized to 448 × 448 pixels and cut into four 224 × 224 patches, averaged), giving six sets. All networks were pretrained on ImageNet and used frozen, so the system runs on an ordinary computer without a graphics card. Each feature set feeds its own standardised, L2-regularised logistic regression (C = 1), and FreshCheck averages the nine predicted class-probability vectors (late fusion). All nine sets were used on every dataset without selection, except that the 50-value colour and texture set was not computed for fruit."
+ },
+ {
+  "k": "p",
+  "text": "If the largest averaged probability is below a threshold τ, FreshCheck returns 'Refer to staff' instead of a class. τ is chosen on the training data alone. Within each training set, a grouped three-fold cross-validation, with the same grouping as the outer folds, produces out-of-fold probabilities, and τ is the smallest value between 0.50 and 0.99 (steps of 0.01) at which no more than 1% of the spoiled training images are accepted as fresh. The threshold thus encodes a safety target set by the user rather than a value tuned on test data. For the released models, trained on all images, τ is the median of the values chosen in cross-validation (0.50 for red meat and 0.71 for chicken)."
+ },
+ {
+  "k": "h2",
+  "text": "2.4. Baseline models"
+ },
+ {
+  "k": "p",
+  "text": "FreshCheck was compared with single feature sets (colour and texture, MobileNetV3, and the final pooled ResNet-50 output that is the usual transfer-learning feature), each with the same logistic regression; with final-layer fusion, the average of those three models; and with early fusion, in which those three feature sets were concatenated and fed to one logistic regression. Three ablations show where any gain comes from: the six ResNet-50 sets alone, the whole-image views alone and the local views alone. To check that freezing the networks does not explain the results, MobileNetV3-Small was also fine-tuned end to end on the red-meat set: 160 × 160 inputs, four epochs, AdamW (learning rate 5 × 10⁻⁴, weight decay 10⁻⁴, cosine schedule), batch size 32, random-resized-crop (70–100% of the area) and horizontal-flip augmentation, and a centre crop at test time. Training ran on a two-core CPU, so fine-tuning used three fold assignments (seeds 0–2) for image-level folds and capture-order blocks of 100, and one for random groups of 100. We also tested two further feature extractors, a bank of Gabor filters modelled on the primary visual cortex and a simulated eight-qubit quantum-kernel classifier; neither improved the fusion, and they are reported in the Supplementary material."
+ },
+ {
+  "k": "h2",
+  "text": "2.5. Validation protocols"
+ },
+ {
+  "k": "p",
+  "text": "The main protocol was five-fold cross-validation with capture sessions kept together, built with stratified group k-fold and repeated with five fold assignments (seeds 0–4). Following the screening results, red-meat and chicken images were grouped in blocks of 100 consecutive file numbers within each class (capture-order blocks), and fruit images in near-copy families (images within 30 bits; at 60 bits, fruit families also joined different fruit photographed on similar plain backgrounds). Image-level stratified five-fold cross-validation was run for comparison."
+ },
+ {
+  "k": "p",
+  "text": "To show how much the validation design matters, the single-feature models were also evaluated on the official splits, with hash families kept together, and with capture-order blocks of 5, 10, 20, 50 and 100 images. Grouping on its own makes folds coarser, so random within-class groups of 5, 20 and 100 images served as a size-matched control. The same random-grouping control with blocks of 100 was applied to FreshCheck. For block sizes of 20 and 100 we drew 20 random within-class groupings, each with its own fold assignment, as a null distribution; the empirical p-value is one plus the number of random groupings scoring at or below the best capture-order run, divided by 21, so 0.048 is the smallest value attainable. In the fruit set the null distribution came from 20 random regroupings that kept the family size distribution."
+ },
+ {
+  "k": "h2",
+  "text": "2.6. Transfer to a new dataset and local labelling"
+ },
+ {
+  "k": "p",
+  "text": "To mimic installation at a new site, the red-meat and chicken datasets were reduced to fresh versus spoiled by leaving out the half-fresh red-meat class (1,477 red-meat images remain). Models were trained on every image of one dataset, with τ chosen by grouped cross-validation on that dataset, and tested on every image of the other, in both directions. Final-layer fusion and the single-feature and fine-tuned models were tested in the same way. We then added k = 1, 2, 5 or 10 capture sessions per class from the new dataset (blocks of 20 consecutive file numbers) to the training data and tested on all remaining sessions of the new dataset, with 20 random draws of sessions for each k. As a control, the same local images were used alone, without the other dataset."
+ },
+ {
+  "k": "h2",
+  "text": "2.7. Demonstration application"
+ },
+ {
+  "k": "p",
+  "text": "A demonstration application was written to show how FreshCheck would be used. FreshCheck models were trained on all images of the red-meat and chicken datasets and saved with their thresholds. The application offers a web interface built with Gradio and a command-line mode: the user chooses the food type and uploads one or more photographs, and the application returns the class probabilities and the decision, either a class or 'Refer to staff'. It states that it is a research prototype and that 'Fresh' means only that no visible problem was found. Processing time was measured on 20 test images on a two-core CPU without a graphics card."
+ },
+ {
+  "k": "h2",
+  "text": "2.8. Performance metrics and statistical analysis"
+ },
+ {
+  "k": "p",
+  "text": "We report accuracy, macro-F1 and the spoiled-as-fresh rate, the share of all spoiled test images that were returned as fresh; for three-class tasks a spoiled image returned as half-fresh or normal is not counted. For the refer rule we also report coverage (the share of images given a class), accuracy on the images given a class, and the shares of fresh and spoiled images referred. Cross-validated metrics are pooled over all held-out predictions and given as mean ± standard deviation across fold assignments. The analysis used Python 3.13 with scikit-learn 1.9, PyTorch 2.15, timm 1.0, OpenCV 5.0, scikit-image 0.26, ImageHash 4.3 and Gradio 6.32. The scripts that reproduce every number in this paper, the per-image hash families and fold groupings, the trained models and the application are supplied as Supplementary material."
+ },
+ {
+  "k": "h1",
+  "text": "3. Results"
+ },
+ {
+  "k": "h2",
+  "text": "3.1. Dataset screening"
+ },
+ {
+  "k": "p",
+  "text": "Screening found strong session structure in the red-meat set. Of its images, 53.7% had as their closest neighbour by hash a same-class image within five file numbers, against 1.2% expected by chance, and same-class images one file number apart differed by 103.9 bits on average, compared with 127.4 bits beyond a gap of 400 (Fig. 3d). Six consecutive fresh files are frames of the same cut, 10–48 bits apart (Fig. 2a), whereas six fresh files drawn at random show different cuts (Fig. 2b). Of the 451 official test images, 87 (19%) belonged to a hash family that also had members in the training set. The chicken set showed none of this: consecutive files show different pieces, 120–136 bits apart (Fig. 2e), the nearest-neighbour share was 0.6% against 1.3% by chance, and every image formed its own hash family. In the fruit set, whose file numbers are interleaved across classes, 68.2% of images had a same-class near-copy within 30 bits elsewhere in the set, and the largest family held 36 images, such as the same two rotten bananas photographed about every eleventh file (Fig. 2c)."
+ },
+ {
+  "k": "p",
+  "text": "The provenance check summarised these patterns (Table 2). It flagged the red-meat set (56.1% of nearest neighbours within five places against a permutation mean of 1.3%; p = 0.001) and the fruit set (22.4% against 1.6%; p = 0.001), and cleared the chicken set (1.9% against 1.5%; p = 0.19). The near-copy share told the two flagged sets apart: 5.3% in red meat, where frames of one session differ by more than a hash detector allows, and 68.2% in fruit, where copies are close enough for hashing to find. Ranks rather than raw file numbers are used in the check, which is why the red-meat figure (56.1%) differs slightly from the 53.7% above."
+ },
+ {
+  "k": "table",
+  "n": 2,
+  "title": "Provenance check on the three development datasets and the accuracy change under the grouping it points to (frozen MobileNetV3; %)",
+  "rows": [
+   [
+    "Dataset",
+    "Images",
+    "Nearest neighbour within five places: observed / permutation mean (max)",
+    "p",
+    "Images with a near-copy (≤ 30 bits)",
+    "Accuracy, image-level → grouped"
+   ],
+   [
+    "Red meat, 3 classes",
+    "2,266",
+    "56.1 / 1.3 (2.8)",
+    "0.001",
+    "5.3",
+    "98.4 → 86.9 (capture-order blocks of 100)"
+   ],
+   [
+    "Chicken breast, 2 classes",
+    "1,300",
+    "1.9 / 1.5 (2.9)",
+    "0.19",
+    "0.0",
+    "96.0 → 94.8 (capture-order blocks of 100)"
+   ],
+   [
+    "Fruit, 3 classes",
+    "1,894",
+    "22.4 / 1.6 (2.9)",
+    "0.001",
+    "68.2",
+    "97.8 → 96.6 (near-copy families)"
+   ],
+   [
+    "Fruit, fresh vs rotten",
+    "1,560",
+    "9.9 / 1.3 (2.5)",
+    "0.001",
+    "66.4",
+    "99.5 → 99.5 (near-copy families)"
+   ]
+  ]
+ },
+ {
+  "k": "p",
+  "text": "The prepared-dish collections showed the simplest form of duplication. The 500 'good' paneer-curry files contained only nine distinct photographs; the other 491 were byte-for-byte copies saved under new names such as 'IMG-20250215-WA0214 (1) (1) (1)'. One photograph appeared 160 times, and all nine show the same plate (Fig. 2d). Our checksums matched the repository's own listing, so the copies are in the published dataset, and the 'bad' class follows the same pattern. Under any random split the test set is made of training images: in 1,000 random 80/20 splits of the 'good' class, 100% of test images had an identical copy in training. In the three momo datasets, about 250 sampled listing entries per dataset carried only 12 to 16 distinct checksums, each photograph appearing 5 to 33 times. These collections were therefore unsuitable for training or testing FreshCheck."
+ },
+ {
+  "k": "fig",
+  "file": "fig_examples.png",
+  "caption": "Figure 2. Example images from the four datasets. (a) Six consecutive files of the red-meat set are frames of the same cut, with the perceptual-hash distance to the previous frame; (b) six fresh files drawn at random show different cuts; (c) one near-copy family from the fruit set (pHash within 30 bits): the same two rotten bananas recur about every eleventh file; (d) the six most copied photographs in the 'good' class of the paneer-curry set, with the number of byte-identical files for each: all show one plate. (e) Six consecutive fresh files of the chicken-breast set, with the hash distance to the previous file: each shows a different piece, so file order carries no capture sessions. Images from the public datasets (Shanawad, 2022; Cendani et al., n.d.; zijianchen98, 2022; Basak & Sarkar, 2025)."
+ },
+ {
+  "k": "h2",
+  "text": "3.2. Effect of validation design"
+ },
+ {
+  "k": "p",
+  "text": "On the red-meat set, frozen MobileNetV3 features gave 98.2% on the official split and 98.4% with image-level folds (Table 3), close to the 99.78% and 99.66% published for the same dataset under the same protocols (Külcü & Balpetek Külcü, 2026). Keeping hash families together barely mattered (98.1%), and random groups of 20 and 100 images gave 98.5%. Capture-order blocks did matter: accuracy fell steadily as blocks grew, to 95.8%, 94.5%, 92.4%, 90.7% and 86.9% for blocks of 5, 10, 20, 50 and 100 images (Fig. 3a), below every one of 20 random groupings of the same size (p = 0.048; Table 4). Most of the extra errors (85% at blocks of 20) were confusions between fresh and half-fresh. ResNet-50 features (98.2% to 87.4%), colour and texture features (89.8% to 83.5%; Fig. 3b) and the fine-tuned network (97.7% ± 0.3% to 85.7% ± 1.7%) followed the same pattern, so fine-tuning raised the apparent ceiling without closing the gap between seen and unseen sessions."
+ },
+ {
+  "k": "p",
+  "text": "In the chicken set, which the provenance check cleared, the same protocols moved accuracy by 1.0–2.7 points (Fig. 3c; Table 4), and ResNet-50 features did not differ from random grouping (p = 0.14 and 0.86). In the fruit set, keeping near-copy families together lowered three-class accuracy from 97.8% to 96.6% (p = 0.048 against 20 random regroupings), so errors rose by about half, while the easier fresh-versus-rotten task did not change (99.5% under both protocols). Image-level validation therefore overstates accuracy where the screening finds structure, and session-grouped validation was used for every comparison that follows."
+ },
+ {
+  "k": "table",
+  "n": 3,
+  "title": "Three-class accuracy on the red-meat dataset under each validation protocol (%; frozen features: mean ± SD over five fold assignments; fine-tuned: mean ± SD over three fold assignments, random groups one)",
+  "rows": [
+   [
+    "Protocol",
+    "Frozen CNN accuracy",
+    "Frozen CNN macro-F1",
+    "Colour accuracy",
+    "Colour macro-F1",
+    "Fine-tuned CNN accuracy"
+   ],
+   [
+    "Official split (1,815/451)",
+    "98.2",
+    "98.3",
+    "88.5",
+    "89.6",
+    "—"
+   ],
+   [
+    "Image-level 5-fold",
+    "98.4 ± 0.1",
+    "98.5",
+    "89.8 ± 0.2",
+    "90.5",
+    "97.7 ± 0.3"
+   ],
+   [
+    "Hash-family 5-fold (≤ 60 bits)",
+    "98.1 ± 0.3",
+    "98.2",
+    "89.5 ± 0.4",
+    "90.2",
+    "—"
+   ],
+   [
+    "Random groups of 20",
+    "98.5 ± 0.2",
+    "98.6",
+    "89.9 ± 0.2",
+    "90.6",
+    "—"
+   ],
+   [
+    "Random groups of 100",
+    "98.5 ± 0.2",
+    "98.7",
+    "89.7 ± 0.2",
+    "90.4",
+    "97.6"
+   ],
+   [
+    "Capture-order blocks of 5",
+    "95.8 ± 0.3",
+    "96.1",
+    "87.8 ± 0.6",
+    "88.6",
+    "—"
+   ],
+   [
+    "Capture-order blocks of 20",
+    "92.4 ± 0.7",
+    "92.8",
+    "85.3 ± 0.5",
+    "86.2",
+    "—"
+   ],
+   [
+    "Capture-order blocks of 100",
+    "86.9 ± 0.9",
+    "87.6",
+    "83.5 ± 0.7",
+    "84.4",
+    "85.7 ± 1.7"
+   ]
+  ]
+ },
+ {
+  "k": "table",
+  "n": 4,
+  "title": "Capture-order blocks against a null distribution of 20 random within-class groupings of the same size (accuracy, %; capture order: mean ± SD over five fold assignments)",
+  "rows": [
+   [
+    "Dataset and features",
+    "Capture order, blocks of 20",
+    "Random groups of 20 (range)",
+    "Capture order, blocks of 100",
+    "Random groups of 100 (range)",
+    "p (20 / 100)"
+   ],
+   [
+    "Red meat, colour and texture",
+    "85.3 ± 0.5",
+    "89.4–90.4",
+    "83.5 ± 0.7",
+    "88.9–89.8",
+    "0.048 / 0.048"
+   ],
+   [
+    "Red meat, MobileNetV3",
+    "92.4 ± 0.7",
+    "98.2–99.0",
+    "86.9 ± 0.8",
+    "98.1–98.9",
+    "0.048 / 0.048"
+   ],
+   [
+    "Red meat, ResNet-50",
+    "92.7 ± 0.8",
+    "97.8–98.4",
+    "87.4 ± 0.9",
+    "97.8–98.4",
+    "0.048 / 0.048"
+   ],
+   [
+    "Poultry, colour and texture",
+    "94.1 ± 0.2",
+    "94.5–95.7",
+    "92.4 ± 0.2",
+    "94.5–95.8",
+    "0.048 / 0.048"
+   ],
+   [
+    "Poultry, MobileNetV3",
+    "94.9 ± 0.2",
+    "95.3–96.5",
+    "94.8 ± 0.1",
+    "95.4–96.2",
+    "0.048 / 0.048"
+   ],
+   [
+    "Poultry, ResNet-50",
+    "96.0 ± 0.1",
+    "95.9–96.9",
+    "96.3 ± 0.2",
+    "96.0–97.3",
+    "0.143 / 0.857"
+   ]
+  ]
+ },
+ {
+  "k": "fig",
+  "file": "fig_leakage_v8.png",
+  "caption": "Figure 3. Effect of validation design on two public meat image datasets. Five-fold accuracy when folds are grouped by blocks of consecutive file numbers (capture order, solid) or by random groups of the same size (dashed): red meat with frozen MobileNetV3 features (a) and colour and texture features (b), and poultry with both feature sets (c); a group size of 1 is image-level cross-validation. (d) Mean perceptual-hash distance between same-class images by the gap between their file numbers: consecutive red-meat images are near-duplicates, poultry images are not."
+ },
+ {
+  "k": "h2",
+  "text": "3.3. FreshCheck compared with baseline models"
+ },
+ {
+  "k": "p",
+  "text": "Under session-grouped validation FreshCheck was the most accurate model on the two meat datasets and matched the best on fruit (Table 5; Fig. 4a). On red meat it reached 95.2% ± 0.6%, against 87.4% for the final ResNet-50 layer, 90.3% for final-layer fusion and 89.8% for early fusion, so the errors of final-layer fusion were halved (9.7% to 4.8%). On chicken it reached 98.4% ± 0.1% (final-layer fusion 97.2%), and the share of spoiled samples accepted as fresh fell from 3.2% to 1.8%. On fruit, where the baselines were already close together, the gain was within the variation between fold assignments (97.4% ± 0.2% against 97.2% ± 0.3%)."
+ },
+ {
+  "k": "p",
+  "text": "Mid-level features carried most of the gain. A single logistic regression on the stage-2 ResNet-50 output reached 94.7% on red meat and 97.7% on chicken, 7.3 and 1.6 points above the final layer of the same network, and accuracy on red meat fell with depth (94.7%, 92.6% and 88.5% for stages 2, 3 and 4 from the whole-image view). Local views helped the deeper stages (stage 4: 92.3% from local views against 88.5%). The six ResNet-50 sets alone gave 95.1% and 98.4%, and the whole-image and local views alone gave 94.3% and 94.2% on red meat, so depth mattered more than view and the two views were complementary. With image-level folds FreshCheck scored 99.8% on red meat, 98.8% on chicken and 97.9% on fruit; the red-meat figure equals the best published values for this dataset (99.66–99.78%; Külcü & Balpetek Külcü, 2026), but only the session-grouped figure describes unseen material. Even so, FreshCheck narrowed the gap between the two protocols on red meat from 8.7 points (final-layer fusion: 99.0% against 90.3%) to 4.6 points. The gap did not close: 20 random groupings of the same size scored 99.6–99.8% on red meat and 98.5–99.0% on chicken, above the session-grouped result in every case (p = 0.048 for both)."
+ },
+ {
+  "k": "table",
+  "n": 5,
+  "title": "FreshCheck and baseline models under session-grouped five-fold cross-validation (%; mean ± SD over five fold assignments; red meat and fruit three classes, chicken two)",
+  "rows": [
+   [
+    "Model",
+    "Red meat accuracy",
+    "Red meat spoiled-as-fresh",
+    "Chicken accuracy",
+    "Chicken spoiled-as-fresh",
+    "Fruit accuracy",
+    "Fruit spoiled-as-fresh"
+   ],
+   [
+    "Colour and texture",
+    "83.5 ± 0.7",
+    "0.8",
+    "92.4 ± 0.3",
+    "8.2",
+    "—",
+    "—"
+   ],
+   [
+    "MobileNetV3 (frozen)",
+    "86.9 ± 0.8",
+    "0.1",
+    "95.0 ± 0.2",
+    "5.2",
+    "96.8 ± 0.4",
+    "0.7"
+   ],
+   [
+    "ResNet-50, final layer",
+    "87.4 ± 0.9",
+    "0.1",
+    "96.1 ± 0.1",
+    "3.6",
+    "96.7 ± 0.3",
+    "0.8"
+   ],
+   [
+    "ResNet-50, stage 2 (whole image)",
+    "94.7 ± 0.3",
+    "0.0",
+    "97.7 ± 0.1",
+    "2.9",
+    "97.1 ± 0.2",
+    "0.7"
+   ],
+   [
+    "Early fusion (final layers)",
+    "89.8 ± 0.7",
+    "0.0",
+    "97.1 ± 0.2",
+    "3.0",
+    "97.1 ± 0.2",
+    "0.6"
+   ],
+   [
+    "Final-layer fusion",
+    "90.3 ± 0.9",
+    "0.0",
+    "97.2 ± 0.2",
+    "3.2",
+    "97.2 ± 0.3",
+    "0.5"
+   ],
+   [
+    "Ablation: six ResNet-50 sets only",
+    "95.1 ± 0.4",
+    "0.0",
+    "98.4 ± 0.1",
+    "1.6",
+    "97.3 ± 0.2",
+    "0.6"
+   ],
+   [
+    "Ablation: whole-image views only",
+    "94.3 ± 0.7",
+    "0.0",
+    "98.2 ± 0.2",
+    "1.9",
+    "97.4 ± 0.1",
+    "0.3"
+   ],
+   [
+    "Ablation: local views only",
+    "94.2 ± 0.7",
+    "0.0",
+    "98.0 ± 0.1",
+    "2.4",
+    "97.5 ± 0.2",
+    "0.5"
+   ],
+   [
+    "FreshCheck (multi-level fusion)",
+    "95.2 ± 0.6",
+    "0.0",
+    "98.4 ± 0.1",
+    "1.8",
+    "97.4 ± 0.2",
+    "0.4"
+   ],
+   [
+    "FreshCheck with refer rule: coverage",
+    "99.4 ± 0.1",
+    "—",
+    "96.8 ± 0.3",
+    "—",
+    "99.7 ± 0.3",
+    "—"
+   ],
+   [
+    "FreshCheck with refer rule: accuracy on decided images",
+    "95.4 ± 0.5",
+    "0.0",
+    "99.3 ± 0.0",
+    "0.8",
+    "97.6 ± 0.2",
+    "0.3"
+   ]
+  ]
+ },
+ {
+  "k": "p",
+  "text": "Note to Table 5: 'final layer' is the pooled output normally used for transfer learning; 'stage 2' is the pooled output of the second residual stage. Fruit models did not use the 50-value colour and texture set. Fold assignments were generated separately from those in Tables 3 and 4, so baseline values can differ from them by up to 0.2 points."
+ },
+ {
+  "k": "fig",
+  "file": "fig4_results_v2.png",
+  "caption": "Figure 4. Performance of FreshCheck. (a) Accuracy of single feature sets, final-layer fusion and FreshCheck (multi-level fusion) under session-grouped five-fold cross-validation on red meat (three classes) and chicken breast (two classes); error bars show the standard deviation over five fold assignments. (b) Accuracy of FreshCheck on a new dataset as labelled local images are added: trained on the other meat dataset plus local images (solid) and on the local images alone (dashed); error bars show the standard deviation over 20 random draws of local sessions."
+ },
+ {
+  "k": "h2",
+  "text": "3.4. Refer-to-staff rule"
+ },
+ {
+  "k": "p",
+  "text": "The refer rule mattered where errors were uncertain. On chicken, the thresholds chosen on the training folds lay mostly between 0.65 and 0.74; FreshCheck then gave a class to 96.8% of images, with 99.3% accuracy on those, and referred 3.6% of spoiled and 2.8% of fresh images to staff. The share of all spoiled chicken images accepted as fresh fell from 1.8% to 0.8%, meeting the 1% target set on training data. With final-layer fusion the same target required referring 8.1% of images, so the stronger features cut the staff workload by more than half. On red meat, FreshCheck accepted no spoiled image as fresh even without the rule, so the threshold stayed at 0.50 and 0.6% of images were referred. The remaining red-meat errors were confident confusions between fresh and half-fresh in sessions the model had not seen, which a confidence threshold cannot catch. On fruit, 0.3% of images were referred. Fig. 5 shows held-out examples of correct decisions, referrals and errors."
+ },
+ {
+  "k": "fig",
+  "file": "fig5_examples_v2.png",
+  "caption": "Figure 5. Held-out FreshCheck decisions under session-grouped cross-validation (fold assignment 0) for red meat (top) and chicken breast (bottom), with the true class, the decision and the highest averaged class probability. Green: correct; amber: referred to staff; red: error. Images from the public datasets (Shanawad, 2022; Cendani et al., n.d.)."
+ },
+ {
+  "k": "h2",
+  "text": "3.5. Transfer to a new dataset and local labelling"
+ },
+ {
+  "k": "p",
+  "text": "Without local images, no model transferred between the two meat datasets. FreshCheck trained on red meat reached 49.0% on chicken and accepted every spoiled chicken image as fresh; trained on chicken, it reached 66.5% on red meat and accepted 38.1% of spoiled red meat as fresh. Final-layer fusion gave 49.8% and 54.8%, and the single-feature models did no better: frozen MobileNetV3 reached 58.2% and 64.4%, the final ResNet-50 layer 50.1% and 49.5%, colour and texture features 47.8% and 42.7%, and the fine-tuned network 50.4% and 42.4%."
+ },
+ {
+  "k": "p",
+  "text": "Labelled local images restored performance quickly (Table 6; Fig. 4b). With one capture session per class from the new dataset (about 13 chicken or 32 red-meat images), accuracy rose to 72.1% on chicken and 83.2% on red meat; with two sessions (30 and 70 images) to 81.2% and 91.0%; and with five (79 and 168 images) to 93.7% and 96.9%, while the share of spoiled samples accepted as fresh fell to 7.9% and 2.3%. The other dataset contributed nothing beyond the local images themselves: trained on the local images alone, FreshCheck did as well on chicken (78.0%, 84.2%, 94.3% and 96.7%) and better on red meat (94.2%, 98.3%, 99.6% and 99.8%). Variation between draws was large with one or two sessions (standard deviations of about 6–11 points) and small with five or more."
+ },
+ {
+  "k": "table",
+  "n": 6,
+  "title": "FreshCheck on a new dataset with labelled local images (binary fresh vs spoiled; %; mean ± SD over 20 random draws of local capture sessions)",
+  "rows": [
+   [
+    "Direction and local sessions per class",
+    "Local images",
+    "Accuracy, other dataset + local",
+    "Spoiled-as-fresh, other dataset + local",
+    "Accuracy, local images only",
+    "Spoiled-as-fresh, local images only"
+   ],
+   [
+    "Red meat → chicken, none",
+    "0",
+    "49.0",
+    "100.0",
+    "—",
+    "—"
+   ],
+   [
+    "Red meat → chicken, 1",
+    "13",
+    "72.1 ± 10.8",
+    "39.6",
+    "78.0 ± 9.5",
+    "21.0"
+   ],
+   [
+    "Red meat → chicken, 2",
+    "30",
+    "81.2 ± 8.3",
+    "24.8",
+    "84.2 ± 7.9",
+    "19.9"
+   ],
+   [
+    "Red meat → chicken, 5",
+    "79",
+    "93.7 ± 3.1",
+    "7.9",
+    "94.3 ± 2.5",
+    "7.0"
+   ],
+   [
+    "Red meat → chicken, 10",
+    "181",
+    "96.5 ± 0.6",
+    "3.7",
+    "96.7 ± 0.6",
+    "3.4"
+   ],
+   [
+    "Chicken → red meat, none",
+    "0",
+    "66.5",
+    "38.1",
+    "—",
+    "—"
+   ],
+   [
+    "Chicken → red meat, 1",
+    "32",
+    "83.2 ± 7.3",
+    "23.2",
+    "94.2 ± 7.6",
+    "9.1"
+   ],
+   [
+    "Chicken → red meat, 2",
+    "70",
+    "91.0 ± 6.1",
+    "9.2",
+    "98.3 ± 2.7",
+    "1.9"
+   ],
+   [
+    "Chicken → red meat, 5",
+    "168",
+    "96.9 ± 1.1",
+    "2.3",
+    "99.6 ± 0.3",
+    "0.1"
+   ],
+   [
+    "Chicken → red meat, 10",
+    "346",
+    "98.6 ± 0.7",
+    "0.5",
+    "99.8 ± 0.1",
+    "0.0"
+   ]
+  ]
+ },
+ {
+  "k": "h2",
+  "text": "3.6. Demonstration application"
+ },
+ {
+  "k": "p",
+  "text": "The application loads the trained models in a few seconds and returns a decision for a photograph in about 0.35 s (median over 20 images; 90th percentile 0.42 s) on a two-core CPU without a graphics card, including feature extraction by both networks. Because the released models were trained on all images of the two public datasets, the application illustrates the workflow but does not provide an independent test; Sections 3.3–3.5 give the held-out performance a new site should expect."
+ },
+ {
+  "k": "h1",
+  "text": "4. Discussion"
+ },
+ {
+  "k": "h2",
+  "text": "4.1. What FreshCheck adds"
+ },
+ {
+  "k": "p",
+  "text": "The main gain came from where in the network the features were taken. The final layer of a pretrained network, the default in transfer learning and in the studies cited above, summarises the whole scene, and under session-grouped validation it was the weakest ResNet-50 feature on red meat (87.4%); the second stage of the same network reached 94.7%. Mid-level features describe colour, sheen and fine surface texture, which is where spoilage shows, and carry less of the cut, tray and background that mark a capture session. Fusing several depths, two views and colour features halved the errors of final-layer fusion on red meat and narrowed the gap between image-level and session-grouped accuracy from 8.7 to 4.6 points. This comparison could only be made under grouped validation: with image-level folds every one of these features scored above 98% on red meat and the differences between them disappeared. The refer rule turns the classifier into a check that can be set to a safety target. On chicken it met a 1% target for spoiled samples accepted as fresh by referring about 3% of images, a workload a person at receiving can carry. Where errors come from sessions unlike any in training, as in red meat and in transfer, the model is confidently wrong and abstention cannot help; such errors have to be prevented by local data and checked by local validation."
+ },
+ {
+  "k": "h2",
+  "text": "4.2. Why the validation design matters"
+ },
+ {
+  "k": "p",
+  "text": "Removing duplicates by hash took out almost none of the inflation in the red-meat set. Frames from one session differ by more than a duplicate detector tolerates, yet they share the cut, tray, background, camera position and light, and accuracy kept falling up to blocks of 100 images, long after the hash distance between neighbouring files had levelled off. The drop was larger for final-layer deep features (11.5 points for MobileNetV3) than for colour and texture features (6.3 points) or for multi-level fusion (4.6 points), consistent with final-layer features picking up session context. Deduplication of the kind used by Bramantyo et al. (2026) is a sensible first step, but it has to be followed by grouping on capture session or item. The 99.66–99.78% reported for this benchmark (Külcü & Balpetek Külcü, 2026), and similar figures for meat photographs (Abd Elfattah et al., 2025; Büyükarıkan, 2024), therefore largely describe recognition of sessions the model has already seen, and most of the extra errors on unseen sessions fall between fresh and half-fresh, the boundary that decides whether meat is used, discounted or discarded. The paneer-curry and momo collections show the extreme case, where a checksum comparison, the cheapest check available, shows that any random test set consists of training images."
+ },
+ {
+  "k": "h2",
+  "text": "4.3. Implications for use in food control"
+ },
+ {
+  "k": "p",
+  "text": "The transfer results set the conditions for using FreshCheck, or any similar classifier, at a new site. A model built on one public dataset should not be expected to work on another food, camera or kitchen: the models here passed 38–100% of spoiled samples as fresh when moved between two meat datasets. A few local capture sessions solved most of the problem, and the public data added nothing beyond them, so the practical route is to photograph about five sessions per class on site (here about 80–170 images, giving 94–99%), train on them, and validate on further local sessions before relying on the check. More generally, five practices would make freshness-imaging results easier to interpret: (i) record an identifier for each item and capture session; (ii) screen datasets before training, removing exact copies by checksum and running a provenance check; (iii) group validation folds by item or session; (iv) test on at least one external collection; and (v) report the spoiled-as-fresh rate and, where a reject option is used, the coverage at which it is achieved. The released code carries out steps (ii)–(iv) on any folder of labelled images."
+ },
+ {
+  "k": "h2",
+  "text": "4.4. Limitations"
+ },
+ {
+  "k": "p",
+  "text": "File numbers stand in for capture sessions; we checked them against image similarity, but a block can still mix items, so the grouped figures, including the local-labelling results, may still be somewhat optimistic. The labels in all three development datasets are undocumented visual judgements and none is tied to a microbial count, total volatile basic nitrogen or another measurement of spoilage, so FreshCheck learns to reproduce those judgements, not to measure spoilage. Only two meat datasets were available for the transfer test, which changed species, camera and labelling together, and the local-labelling experiment used sessions from public datasets rather than a real new kitchen. The prepared-dish collections could only be screened, partly from published file listings, because their duplication left nothing to train on. Fine-tuning used a short schedule because of computing limits, and the feature depths and views were fixed in advance rather than tuned, so other choices may do better. The application has also not been tested by food handlers, and a field trial with labels from laboratory measurements is the next step."
+ },
+ {
+  "k": "h1",
+  "text": "5. Conclusions"
+ },
+ {
+  "k": "p",
+  "text": "This study developed FreshCheck, an image classifier that labels food as fresh or spoiled and refers uncertain images to staff, and validated it on public red-meat, chicken-breast and fruit datasets after screening them for duplicates and capture sessions. Screening showed that image-level validation overstated red-meat accuracy by up to 11.5 points and that public prepared-dish collections consisted largely of copies. Under session-grouped validation, fusing mid-level and final-layer features from whole-image and local views raised accuracy from 90.3% to 95.2% on red meat and from 97.2% to 98.4% on chicken, and on chicken the refer rule cut spoiled samples accepted as fresh to 0.8% while deciding 96.8% of images. No model transferred between the two meat datasets, but about five labelled local capture sessions per class restored 94–97% accuracy. Image-based freshness checks should be validated by session, judged by the rate at which spoiled food is accepted, and calibrated with local images before use."
+ },
+ {
+  "k": "decl",
+  "label": "CRediT authorship contribution statement",
+  "text": "Vipin Kumar Singh: Conceptualization, Validation, Writing – review & editing, Supervision. Tanmay Pondhe: Methodology, Software, Formal analysis, Investigation, Data curation, Visualization, Writing – original draft."
+ },
+ {
+  "k": "decl",
+  "label": "Declaration of competing interest",
+  "text": "The authors declare that they have no known competing financial interests or personal relationships that could have appeared to influence the work reported in this paper."
+ },
+ {
+  "k": "decl",
+  "label": "Funding",
+  "text": "This research did not receive any specific grant from funding agencies in the public, commercial, or not-for-profit sectors."
+ },
+ {
+  "k": "decl",
+  "label": "Data availability",
+  "text": "All four datasets are public (Shanawad, 2022; calvinsama, n.d.; zijianchen98, 2022; Basak & Sarkar, 2025, https://doi.org/10.17632/4898ctyf5n.1; momo datasets: Paul & Sarkar, 2026, https://doi.org/10.17632/6x6b42twxz.2; Sarkar & Sarkar, 2026, https://doi.org/10.17632/jdnj3h9dx6.1; Singh & Sarkar, 2026, https://doi.org/10.17632/d5s36245zh.1; copies at https://github.com/TheLohia/Phteven, https://github.com/LinggarM/Poultry-Meat-Freshness-Classification-with-Transfer-Learning-using-ResNet and https://github.com/zijianchen98/Fruit-freshness-detection-dataset). The analysis code, the FreshCheck models and demonstration application, per-image hash families and fold groupings, and all results are provided as Supplementary material and will be deposited in a public repository on acceptance."
+ },
+ {
+  "k": "decl",
+  "label": "Declaration of generative AI and AI-assisted technologies in the manuscript preparation process",
+  "text": "During the preparation of this work the authors used ChatGPT (OpenAI) and Claude (Anthropic) in order to assist with literature discovery, source checking, code drafting and language editing. After using these tools, the authors reviewed and edited the content as needed and take full responsibility for the content of the published article."
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "Abd Elfattah, M., Ewees, A. A., Darwish, A., & Hassanien, A. E. (2025). Detection and classification of meat freshness using an optimized deep learning method. ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "Food Chemistry, 489",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": ", 144783. https://doi.org/10.1016/j.foodchem.2025.144783",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "Basak, S., & Sarkar, T. (2025). ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "Paneer curry",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": " (Version 1) [Data set]. Mendeley Data. https://doi.org/10.17632/4898ctyf5n.1",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "Bramantyo, H. A., Faridi, M. A., Chen, R., Harris, C. M., & Sun, Y. (2026). Deep learning-based meat freshness detection with segmentation and OOD-aware classification. ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "IEEE Access, 14",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": ", 34939–34952. https://doi.org/10.1109/ACCESS.2026.3669074",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "Buchner, J. (n.d.). ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "ImageHash: A Python perceptual image hashing module",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": " [Computer software]. GitHub. Retrieved November 8, 2026, from https://github.com/JohannesBuchner/imagehash",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "Büyükarıkan, B. (2024). ConvColor DL: Concatenated convolutional and handcrafted color features fusion for beef quality identification. ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "Food Chemistry, 460",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": ", 140795. https://doi.org/10.1016/j.foodchem.2024.140795",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "calvinsama. (n.d.). ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "Fresh and rotten poultry meat datasets",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": " [Data set]. Kaggle. Retrieved November 8, 2026, from https://www.kaggle.com/datasets/calvinsama/fresh-and-rotten-poultry-meat-datasets",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "Cendani, L. M., Pangestu, M. A., & Muria, F. (n.d.). ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "Poultry meat freshness classification with transfer learning using ResNet",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": " [Computer software and data]. GitHub. Retrieved November 8, 2026, from https://github.com/LinggarM/Poultry-Meat-Freshness-Classification-with-Transfer-Learning-using-ResNet",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "Chow, C. K. (1970). On optimum recognition error and reject tradeoff. ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "IEEE Transactions on Information Theory, 16",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "(1), 41–46. https://doi.org/10.1109/TIT.1970.1054406",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "He, K., Zhang, X., Ren, S., & Sun, J. (2016). Deep residual learning for image recognition. In ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": " (pp. 770–778). https://doi.org/10.1109/CVPR.2016.90",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "Hidalgo, M. M., Lima, R. C., De Nadai Fernandes, E. A., Bacchi, M. A., & Sarriés, G. A. (2025). Leveraging pre-trained computer vision models for accurate classification of meat freshness. ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "Food Chemistry, 495",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": ", 146430. https://doi.org/10.1016/j.foodchem.2025.146430",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "Howard, A., Sandler, M., Chu, G., Chen, L.-C., Chen, B., Tan, M., Wang, W., Zhu, Y., Pang, R., Vasudevan, V., Le, Q. V., & Adam, H. (2019). Searching for MobileNetV3. In ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "Proceedings of the IEEE/CVF International Conference on Computer Vision",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": " (pp. 1314–1324). https://doi.org/10.1109/ICCV.2019.00140",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "Külcü, S., & Balpetek Külcü, D. (2026). Bias mitigation in ensemble-based meat freshness classification using Grad-CAM. ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "Balkan Journal of Electrical and Computer Engineering, 14",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": ", 74–82. https://doi.org/10.17694/bajece.1817907",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "Meenu, M., Kurade, C., Neelapu, B. C., Kalra, S., Ramaswamy, H. S., & Yu, Y. (2021). A concise review on food quality assessment using digital image processing. ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "Trends in Food Science & Technology, 118",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": ", 106–124. https://doi.org/10.1016/j.tifs.2021.09.014",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "Mudau, R., Isingizwe Nturambirwe, J. F., & Nyirenda, C. N. (2026). ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "Beyond group splits: Specimen-level cross-validation and visual attribution for remaining-shelf-life regression in climacteric fruit",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": " (arXiv:2610.09726). arXiv. https://doi.org/10.48550/arXiv.2610.09726",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "Ozkat, E. C. (2026). Leakage-free benchmarking of electronic noses for beef freshness: A signal-richness criterion for model selection. ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "Foods, 15",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "(16), 2798. https://doi.org/10.3390/foods15162798",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "Paul, A., & Sarkar, T. (2026). ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "Bad and good classifing Momo",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": " (Version 2) [Data set]. Mendeley Data. https://doi.org/10.17632/6x6b42twxz.2",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "Sagiraju, B., Casanova, N., Chun, L. I. C., Lohia, M., & Yoshiyasu, T. (2023). ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "Meat freshness prediction",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": " (arXiv:2305.00986). arXiv. https://doi.org/10.48550/arXiv.2305.00986",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "Sarkar, R., & Sarkar, T. (2026). ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "Good and bad classification chicken momo",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": " (Version 1) [Data set]. Mendeley Data. https://doi.org/10.17632/jdnj3h9dx6.1",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "Shanawad, V. (2022). ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "Meat freshness image dataset",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": " [Data set]. Kaggle. Retrieved November 8, 2026, from https://www.kaggle.com/datasets/vinayakshanawad/meat-freshness-image-dataset",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "Singh, Y., & Sarkar, T. (2026). ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "Good and bad classification of pan fried momo",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": " (Version 1) [Data set]. Mendeley Data. https://doi.org/10.17632/d5s36245zh.1",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "Wightman, R. (2019). ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "PyTorch image models",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": " [Computer software]. GitHub. https://doi.org/10.5281/zenodo.4414861",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "Zhou, L., Zhang, C., Liu, F., Qiu, Z., & He, Y. (2019). Application of deep learning in food: A review. ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "Comprehensive Reviews in Food Science and Food Safety, 18",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "(6), 1793–1811. https://doi.org/10.1111/1541-4337.12492",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ },
+ {
+  "k": "ref",
+  "runs": [
+   {
+    "t": "zijianchen98. (2022). ",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": "Fruit freshness detection dataset",
+    "b": false,
+    "i": true,
+    "sup": false,
+    "sub": false
+   },
+   {
+    "t": " [Data set]. GitHub. https://github.com/zijianchen98/Fruit-freshness-detection-dataset",
+    "b": false,
+    "i": false,
+    "sup": false,
+    "sub": false
+   }
+  ]
+ }
+]
